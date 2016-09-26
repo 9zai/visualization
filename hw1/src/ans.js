@@ -3,48 +3,179 @@ var years;
 const text = [
     "High",
     "Bach",
-    "Adv",    
-];
+    "Adv"
+]
+const legendQ3 = [
+    "High school",
+    "Bachelor",
+    "Advanced degree"  
+]
 const legendText = [
     "High school or more",
     "Bachelor's or more",
     "Advanced degree"
 ]
+var q3Data;
+
 d3.tsv("states.tsv",function(data){
     states = data;
     d3.tsv("years.tsv",function(data){
         years = data;
 
         var data = process(states,years);
-        solveQ1(data[1].years);
+/*        solveQ1(data[1].years);
 
-        solveQ2(data,'High');
-        solveQ2(data,'Bach');
-        solveQ2(data,'Adv');
-
+        solveQ2(data,'High',5,"#q2");
+        solveQ2(data,'Bach',5,"#q2");
+        solveQ2(data,'Adv',5,"#q2");
+*/
         solveQ3(data);
     })
 })
 
+var segmentVar = function(data){
+    data.forEach(function(d){
+        d.years.forEach(function(yearData){
+            yearData.High = yearData.High - yearData.Bach;
+            yearData.Bach = yearData.Bach - yearData.Adv;
+            yearData.Adv = yearData.Adv - 0;
+        })
+    })
+
+    return data;
+}
+
 var solveQ3 = function(resourcesForThree){
-    var margin = {top: 20, right: 20, bottom: 30, left: 40},
+    q3Data = segmentVar(resourcesForThree);
+     var margin = {top: 20, right: 20, bottom: 30, left: 40},
     width = 1280 - margin.left - margin.right,
     height = 500 - margin.top - margin.bottom;
+
+    var x = d3.scale.ordinal()
+        .rangeRoundBands([0, width], .1);
+
+    var y = d3.scale.linear()
+        .range([height, 0]);
+
+    var z = d3.scale.category10();
+
+    var cates = ["High", "Bach", "Adv"];
+
+    var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom");
+
+    var yAxis = d3.svg.axis()
+        .scale(y)
+        .orient("left")
+        .tickFormat(d3.format(".2s"));
+
 
     var svg = d3.select("#q3").append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
-    .append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-    var slider = svg.append("g")
-    .attr("class","slider");
+    var layers = d3.layout.stack()(cates.map(function(c) {
+        return q3Data.map(function(d) {
+        return {x: d.abbre, y: d.years[0][c]};
+        });
+    }));
 
-    slider.append("line")
-    .attr("class", "track")
+    x.domain(resourcesForThree.map(function(d) { return d.abbre; }));
+    y.domain([0, 100]);
+
+    var layer = svg.selectAll(".layer")
+        .data(layers);
+    
+    layer.enter().append("g")
+        .attr("class", "layer")
+        .style("fill", function(d, i) { return z(i); });
+      
+    var rect = layer.selectAll(".rect")
+      .data(function(d) { return d; });
+    rect.enter().append("rect")
+      .attr("x", function(d) { return x(d.x); })
+      .attr("y", function(d) { return y(d.y + d.y0); })
+      .attr("height", function(d) { return y(d.y0) - y(d.y + d.y0); })
+      .attr("width", x.rangeBand() - 1);
+      
+      rect.exit().remove();
+      layer.exit().remove();
+
+     svg.append("g")
+      .attr("class", "axis axis--x")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis);
+    
+    svg.append("g")
+        .attr("class", "y axis")
+        .call(yAxis)
+        .append("text")
+        .attr("transform", "rotate(0)")
+        .attr("y", 6)
+        .attr("dy", "-1.5em")
+        .attr("dx","2em")
+        .style("text-anchor", "end")
+        .text("Percentage");
+
+    var legend = svg.selectAll(".legend")
+        .data(legendQ3)
+        .enter().append("g")
+        .attr("class", "legend")
+        .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+    legend.append("rect")
+        .attr("x", width)
+        .attr("width", 18)
+        .attr("height", 18)
+        .style("fill", function(d,i){
+            return z(i);
+        });
+
+    legend.append("text")
+        .attr("x", width - 5)
+        .attr("y", 9)
+        .attr("dy", ".35em")
+        .style("text-anchor", "end")
+        .style("font-size","10px")
+        .text(function(d) { return d; });
+
+
+
+
+    d3.selectAll(".m")
+        .on("click",function(){
+            var selectYear  = this.getAttribute("value");
+
+            var nData = d3.layout.stack()(cates.map(function(c) {
+                return q3Data.map(function(d) {
+                return {x: d.abbre, y: d.years[selectYear][c]};
+                });
+            }));
+
+            layer = svg.selectAll(".layer")
+                .data(nData);
+            layer.enter()
+                .append("g")
+                .attr("class", "layer")
+                .style("fill", function(d, i) { return z(i); });
+
+            var rect = layer.selectAll(".rect")
+                .data(function(d) { return d; });
+                
+            rect.enter().append("rect")
+                .attr("x", function(d) { return x(d.x); })
+                .attr("y", function(d) { return y(d.y + d.y0); })
+                .attr("height", function(d) { return y(d.y0) - y(d.y + d.y0); })
+                .attr("width", x.rangeBand() - 1);
+
+            rect.exit().remove();
+            layer.exit().remove();
+        })
 }
 
-var solveQ2 = function(resourcesForTwo,cate){
+var solveQ2 = function(resourcesForTwo,cate,selectYear,qNum){
     var margin = {top: 20, right: 20, bottom: 30, left: 40},
     width = 1280 - margin.left - margin.right,
     height = 500 - margin.top - margin.bottom;
@@ -64,38 +195,39 @@ var solveQ2 = function(resourcesForTwo,cate){
         .orient("left")
         .tickFormat(d3.format(".2s"));
 
-    var svg = d3.select("#q2").append("svg")
+    var svg = d3.select(qNum).append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
     .append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
     x.domain(resourcesForTwo.map(function(d) { return d.abbre; }));
-    y.domain([0, d3.max(resourcesForTwo, function(d) { return d.years[5][cate]; })]);
+    y.domain([0, d3.max(resourcesForTwo, function(d) { return d.years[selectYear][cate]; })]);
 
      svg.append("g")
       .attr("class", "axis axis--x")
       .attr("transform", "translate(0," + height + ")")
       .call(xAxis);
-
+    
     svg.append("g")
-      .attr("class", "axis axis--y")
-      .call(yAxis)
-    .append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", 6)
-      .attr("dy", "0.71em")
-      .attr("text-anchor", "end")
-      .text("Percentage");
+        .attr("class", "y axis")
+        .call(yAxis)
+        .append("text")
+        .attr("transform", "rotate(0)")
+        .attr("y", 6)
+        .attr("dy", "-.7em")
+        .attr("dx","2em")
+        .style("text-anchor", "end")
+        .text("Percentage");
 
       svg.selectAll(".bar")
     .data(resourcesForTwo)
     .enter().append("rect")
       .attr("class", "bar")
       .attr("x", function(d) { return x(d.abbre); })
-      .attr("y", function(d) { return y(d.years[5][cate]); })
+      .attr("y", function(d) { return y(d.years[selectYear][cate]); })
       .attr("width", x.rangeBand())
-      .attr("height", function(d) { return height - y(d.years[5][cate]); });
+      .attr("height", function(d) { return height - y(d.years[selectYear][cate]); });
 }
 
 
